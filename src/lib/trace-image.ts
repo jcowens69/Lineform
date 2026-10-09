@@ -108,9 +108,26 @@ export function composeSvg(layers: TraceLayer[], width: number, height: number, 
 }
 
 export function toHex(fill: string) {
-  const rgb = fill.match(/\d+/g);
-  if (!rgb) return /^#/.test(fill) ? fill.slice(0, 7) : "#000000";
-  return "#" + rgb.slice(0, 3).map((n) => Number(n).toString(16).padStart(2, "0")).join("");
+  const raw = fill.trim().toLowerCase();
+  const hex = raw.match(/^#([0-9a-f]{3,8})$/);
+  if (hex) {
+    let body = hex[1];
+    if (body.length === 3 || body.length === 4) body = body.slice(0, 3).split("").map((c) => c + c).join("");
+    return "#" + body.slice(0, 6).padEnd(6, "0");
+  }
+  const rgb = raw.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/);
+  if (rgb) {
+    return (
+      "#" +
+      rgb
+        .slice(1, 4)
+        .map((n) => Math.max(0, Math.min(255, Math.round(Number(n)))).toString(16).padStart(2, "0"))
+        .join("")
+    );
+  }
+  if (raw === "black") return "#000000";
+  if (raw === "white") return "#ffffff";
+  return "#000000";
 }
 
 export function formatBytes(n: number) {
@@ -333,18 +350,33 @@ export function solidify(data: Uint8ClampedArray, w: number, h: number, maxColor
   const candidates: number[][] = [];
   const gap = 34 * 34;
   const floor = samples * 0.0008;
+  let darkNeutral = 0;
+  for (let y = 0; y < h; y += step) {
+    for (let x = 0; x < w; x += step) {
+      const i = (y * w + x) * 4;
+      if (data[i + 3] < 200) continue;
+      if (chromaAt(data, i) < 16 && data[i] < 48 && data[i + 1] < 48 && data[i + 2] < 48) darkNeutral++;
+    }
+  }
   for (const [key, count] of bins) {
     if (candidates.length > 0 && count < floor) break;
     const color = [(((key >> 10) & 31) << 3) | 4, (((key >> 5) & 31) << 3) | 4, ((key & 31) << 3) | 4];
-    if (candidates.some((ink) => dist2(ink, color) < gap)) continue;
+    if (candidates.some((ink) => dist2(ink, color) < gap && neutral(ink) === neutral(color))) continue;
     candidates.push(color);
     if (candidates.length >= maxColors * 4) break;
   }
   const palette: number[][] = [];
   for (const color of candidates) {
     if (palette.length >= maxColors) break;
+    if (neutral(color) && color[0] < 40) {
+      palette.push(color);
+      continue;
+    }
     if (isBlend(color, palette)) continue;
     palette.push(color);
+  }
+  if (darkNeutral > samples * 0.004 && !palette.some((ink) => neutral(ink) && ink[0] < 50)) {
+    palette.push([12, 12, 12]);
   }
   if (!palette.length) return;
   for (let i = 0; i < data.length; i += 4) {
@@ -355,7 +387,11 @@ export function solidify(data: Uint8ClampedArray, w: number, h: number, maxColor
     let best = palette[0];
     let bestD = Infinity;
     const pixel = [data[i], data[i + 1], data[i + 2]];
-    for (const ink of palette) {
+    const dark = pixel[0] < 70 && pixel[1] < 70 && pixel[2] < 70;
+    const gray = chroma(pixel) < (dark ? 42 : 18);
+    const pool = gray ? palette.filter((ink) => chroma(ink) < 32) : palette;
+    const choices = pool.length ? pool : palette;
+    for (const ink of choices) {
       const d = dist2(ink, pixel);
       if (d < bestD) {
         bestD = d;
@@ -367,6 +403,18 @@ export function solidify(data: Uint8ClampedArray, w: number, h: number, maxColor
     data[i + 2] = best[2];
     data[i + 3] = 255;
   }
+}
+
+function chroma(color: number[]) {
+  return Math.max(color[0], color[1], color[2]) - Math.min(color[0], color[1], color[2]);
+}
+
+function chromaAt(data: Uint8ClampedArray, i: number) {
+  return Math.max(data[i], data[i + 1], data[i + 2]) - Math.min(data[i], data[i + 1], data[i + 2]);
+}
+
+function neutral(color: number[]) {
+  return chroma(color) < 18;
 }
 
 function dist2(a: number[], b: number[]) {
