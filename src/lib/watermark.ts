@@ -4,8 +4,10 @@ export function stampPreview(svg: string, width: number, height: number) {
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      const max = 900;
-      const scale = Math.min(1, max / Math.max(width, height, 1));
+      const longest = Math.max(width, height, 1);
+      // Draw the watermarked preview larger than the screen so a zoom still looks smooth.
+      const side = Math.min(2200, Math.max(longest * 2, 1600));
+      const scale = side / longest;
       canvas.width = Math.max(1, Math.round(width * scale));
       canvas.height = Math.max(1, Math.round(height * scale));
       const ctx = canvas.getContext("2d");
@@ -16,6 +18,8 @@ export function stampPreview(svg: string, width: number, height: number) {
       }
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       ctx.save();
       ctx.translate(canvas.width / 2, canvas.height / 2);

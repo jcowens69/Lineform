@@ -359,8 +359,8 @@ export function Studio() {
                 </div>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
-                <figure>
+              <div className="grid min-w-0 gap-3 md:grid-cols-2">
+                <figure className="min-w-0">
                   <figcaption className="mb-2 text-xs tracking-widest text-muted uppercase">Pixels</figcaption>
                   <div className="grid min-h-72 place-items-center rounded-2xl border border-line bg-paper p-4">
                     {previewUrl ? (
@@ -368,24 +368,7 @@ export function Studio() {
                     ) : null}
                   </div>
                 </figure>
-                <figure className="relative">
-                  <figcaption className="mb-2 text-xs tracking-widest text-muted uppercase">Vectors</figcaption>
-                  <div className="grid min-h-72 place-items-center rounded-2xl border border-line bg-paper p-4">
-                    {member && svg ? (
-                      <div
-                        className="w-full [&_svg]:h-auto [&_svg]:max-h-96 [&_svg]:w-full"
-                        dangerouslySetInnerHTML={{ __html: svg }}
-                      />
-                    ) : vectorPreview ? (
-                      <img src={vectorPreview} alt="" className="max-h-96 max-w-full" />
-                    ) : null}
-                    {busy ? (
-                      <p className="absolute inset-0 grid place-items-center bg-card/70 font-display text-xl">
-                        Tracing paths…
-                      </p>
-                    ) : null}
-                  </div>
-                </figure>
+                <VectorZoom svg={svg} src={vectorPreview} busy={busy} />
               </div>
 
               {error ? <p className="mt-3 text-amber">{error}</p> : null}
@@ -710,6 +693,288 @@ function SiteHeader({ member }: { member: boolean }) {
         ) : null}
       </header>
     </>
+  );
+}
+
+function clampFocal(value: number, zoom: number) {
+  if (zoom <= 1) return 0.5;
+  const half = 0.5 / zoom;
+  return Math.min(1 - half, Math.max(half, value));
+}
+
+function VectorZoom({ svg, src, busy }: { svg: string; src: string; busy: boolean }) {
+  const frameRef = useRef<HTMLDivElement>(null);
+  const artRef = useRef<HTMLDivElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ dist: number; zoom: number } | null>(null);
+  const sharp = useRef(false);
+  const baseRef = useRef({ w: 0, h: 0 });
+  const zoomRef = useRef(1);
+  const [view, setView] = useState({ zoom: 1, fx: 0.5, fy: 0.5 });
+  const [box, setBox] = useState({ w: 0, h: 0 });
+  const [panning, setPanning] = useState(false);
+  const [lens, setLens] = useState<{ x: number; y: number; relX: number; relY: number; artW: number; artH: number } | null>(null);
+  sharp.current = Boolean(svg);
+  zoomRef.current = view.zoom;
+  const maxZoom = svg ? 6 : 3;
+
+  useEffect(() => {
+    setView({ zoom: 1, fx: 0.5, fy: 0.5 });
+    setLens(null);
+    setBox({ w: 0, h: 0 });
+    baseRef.current = { w: 0, h: 0 };
+  }, [svg, src]);
+
+  useEffect(() => {
+    const art = artRef.current;
+    if (!art) return;
+    const measure = () => {
+      if (zoomRef.current !== 1) return;
+      const w = art.offsetWidth;
+      const h = art.offsetHeight;
+      if (w < 8 || h < 8) return;
+      baseRef.current = { w, h };
+      setBox((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(art);
+    return () => observer.disconnect();
+  }, [svg, src, busy]);
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const art = artRef.current;
+      if (!art) return;
+      const dir = event.deltaY < 0 ? 1 : -1;
+      setView((current) => {
+        const cap = sharp.current ? 6 : 3;
+        const next = Math.min(cap, Math.max(1, Math.round(current.zoom * (dir > 0 ? 1.12 : 0.89) * 100) / 100));
+        if (next === current.zoom) return current;
+        if (next === 1) return { zoom: 1, fx: 0.5, fy: 0.5 };
+        const w = baseRef.current.w || art.offsetWidth || 1;
+        const h = baseRef.current.h || art.offsetHeight || 1;
+        const centerX = frame.getBoundingClientRect().left + art.offsetLeft + art.offsetWidth / 2;
+        const centerY = frame.getBoundingClientRect().top + art.offsetTop + art.offsetHeight / 2;
+        const cx = event.clientX - centerX;
+        const cy = event.clientY - centerY;
+        return {
+          zoom: next,
+          fx: clampFocal(current.fx + (cx / w) * (1 / current.zoom - 1 / next), next),
+          fy: clampFocal(current.fy + (cy / h) * (1 / current.zoom - 1 / next), next),
+        };
+      });
+    };
+    frame.addEventListener("wheel", onWheel, { passive: false });
+    return () => frame.removeEventListener("wheel", onWheel);
+  }, []);
+
+  function artwork(box?: { w: number }) {
+    if (svg) {
+      return (
+        <div
+          className={box ? "[&_svg]:block [&_svg]:h-auto [&_svg]:w-full" : "[&_svg]:block [&_svg]:h-auto [&_svg]:max-h-96 [&_svg]:w-auto [&_svg]:max-w-full"}
+          style={box ? { width: box.w } : undefined}
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+      );
+    }
+    if (!src) return null;
+    return (
+      <img
+        src={src}
+        alt=""
+        draggable={false}
+        className={box ? "block h-auto max-w-none" : "block max-h-96 max-w-full"}
+        style={box ? { width: box.w } : undefined}
+      />
+    );
+  }
+
+  function hideLens() {
+    setLens(null);
+  }
+
+  function moveLens(event: React.PointerEvent) {
+    if (event.pointerType !== "mouse" || view.zoom !== 1 || busy) {
+      hideLens();
+      return;
+    }
+    const art = artRef.current;
+    const wrap = wrapRef.current;
+    if (!art || !wrap) return;
+    const artBox = art.getBoundingClientRect();
+    const wrapBox = wrap.getBoundingClientRect();
+    if (!artBox.width || !artBox.height) return;
+    const relX = (event.clientX - artBox.left) / artBox.width;
+    const relY = (event.clientY - artBox.top) / artBox.height;
+    if (relX < 0 || relX > 1 || relY < 0 || relY > 1) {
+      hideLens();
+      return;
+    }
+    const size = 176;
+    const left = Math.min(Math.max(8, event.clientX - wrapBox.left - size / 2), Math.max(8, wrapBox.width - size - 8));
+    const top = Math.min(Math.max(8, event.clientY - wrapBox.top - size / 2), Math.max(8, wrapBox.height - size - 8));
+    setLens({ x: left, y: top, relX, relY, artW: art.offsetWidth, artH: art.offsetHeight });
+  }
+
+  function onPointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.current.size >= 2 || view.zoom > 1) event.currentTarget.setPointerCapture(event.pointerId);
+    if (pointers.current.size >= 2) {
+      const pts = [...pointers.current.values()];
+      pinch.current = { dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1, zoom: view.zoom };
+      hideLens();
+      return;
+    }
+    if (view.zoom > 1) setPanning(true);
+  }
+
+  function onPointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    const prev = pointers.current.get(event.pointerId);
+    if (!prev) {
+      moveLens(event);
+      return;
+    }
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.current.size >= 2 && pinch.current) {
+      const pts = [...pointers.current.values()];
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+      const next = Math.min(maxZoom, Math.max(1, Math.round(pinch.current.zoom * (dist / pinch.current.dist) * 100) / 100));
+      setView((current) => (next === 1 ? { zoom: 1, fx: 0.5, fy: 0.5 } : { ...current, zoom: next }));
+      hideLens();
+      return;
+    }
+    if (view.zoom <= 1) {
+      moveLens(event);
+      return;
+    }
+    const w = baseRef.current.w || 1;
+    const h = baseRef.current.h || 1;
+    const dx = event.clientX - prev.x;
+    const dy = event.clientY - prev.y;
+    setView((current) => ({
+      ...current,
+      fx: clampFocal(current.fx - dx / (w * current.zoom), current.zoom),
+      fy: clampFocal(current.fy - dy / (h * current.zoom), current.zoom),
+    }));
+    hideLens();
+  }
+
+  function onPointerUp(event: React.PointerEvent<HTMLDivElement>) {
+    pointers.current.delete(event.pointerId);
+    if (pointers.current.size < 2) pinch.current = null;
+    if (pointers.current.size === 0) setPanning(false);
+  }
+
+  function zoomBy(dir: 1 | -1) {
+    const steps = [1, 1.5, 2, 3, 4, 6].filter((step) => step <= maxZoom);
+    setView((current) => {
+      const index = steps.findIndex((step) => step >= current.zoom - 0.01);
+      const next = steps[Math.min(steps.length - 1, Math.max(0, (index === -1 ? 0 : index) + dir))];
+      if (!next || next === 1) return { zoom: 1, fx: 0.5, fy: 0.5 };
+      return { zoom: next, fx: current.fx, fy: current.fy };
+    });
+    hideLens();
+  }
+
+  const tx = -(view.fx - 0.5) * box.w * view.zoom;
+  const ty = -(view.fy - 0.5) * box.h * view.zoom;
+  const lensSize = 176;
+  const mag = 3;
+
+  return (
+    <figure className="min-w-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <figcaption className="text-xs tracking-widest text-muted uppercase">Vectors</figcaption>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            aria-label="Zoom out"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border border-line text-lg disabled:opacity-40"
+            disabled={view.zoom <= 1}
+            onClick={() => zoomBy(-1)}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            aria-label="Reset zoom"
+            className="inline-flex min-h-11 min-w-14 items-center justify-center rounded-full border border-line px-2 text-sm font-semibold"
+            onClick={() => setView({ zoom: 1, fx: 0.5, fy: 0.5 })}
+          >
+            {Math.round(view.zoom * 100)}%
+          </button>
+          <button
+            type="button"
+            aria-label="Zoom in"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border border-line text-lg disabled:opacity-40"
+            disabled={view.zoom >= maxZoom}
+            onClick={() => zoomBy(1)}
+          >
+            +
+          </button>
+        </div>
+      </div>
+      <div ref={wrapRef} className="relative">
+        <div
+          ref={frameRef}
+          className="relative grid min-h-72 w-full min-w-0 place-items-center overflow-hidden rounded-2xl border border-line bg-paper p-4 select-none"
+          style={{ touchAction: "none", cursor: panning ? "grabbing" : view.zoom > 1 ? "grab" : "zoom-in" }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onPointerLeave={(event) => {
+            if (event.pointerType === "mouse" && pointers.current.size === 0) hideLens();
+          }}
+          onDoubleClick={() => {
+            setView((current) => (current.zoom > 1 ? { zoom: 1, fx: 0.5, fy: 0.5 } : { zoom: Math.min(3, maxZoom), fx: 0.5, fy: 0.5 }));
+            hideLens();
+          }}
+        >
+          <div
+            ref={artRef}
+            className={view.zoom > 1 && box.w ? "min-w-0 justify-self-center" : "w-fit max-w-full"}
+            style={{
+              width: view.zoom > 1 && box.w ? box.w * view.zoom : undefined,
+              transform: `translate(${tx}px, ${ty}px)`,
+            }}
+          >
+            {artwork(view.zoom > 1 && box.w ? { w: box.w * view.zoom } : undefined)}
+          </div>
+          {busy ? (
+            <p className="absolute inset-0 grid place-items-center bg-card/70 font-display text-xl">Tracing paths…</p>
+          ) : null}
+        </div>
+        {lens && lens.artW > 8 ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute z-10 overflow-hidden rounded-full border-2 border-cream bg-paper shadow-[0_12px_40px_rgba(27,25,20,0.28)]"
+            style={{ width: lensSize, height: lensSize, left: lens.x, top: lens.y }}
+          >
+            <div
+              style={{
+                width: lens.artW * mag,
+                transform: `translate(${lensSize / 2 - lens.relX * lens.artW * mag}px, ${lensSize / 2 - lens.relY * lens.artH * mag}px)`,
+              }}
+            >
+              {artwork({ w: lens.artW * mag })}
+            </div>
+            <div className="absolute top-1/2 left-1/2 h-px w-4 -translate-x-1/2 -translate-y-1/2 bg-ink/40" />
+            <div className="absolute top-1/2 left-1/2 h-4 w-px -translate-x-1/2 -translate-y-1/2 bg-ink/40" />
+            <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-ink/80 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-cream">
+              3×
+            </span>
+          </div>
+        ) : null}
+      </div>
+      <p className="mt-2 text-xs text-muted">Hover, scroll, or pinch to look closer. The paths stay sharp.</p>
+    </figure>
   );
 }
 
