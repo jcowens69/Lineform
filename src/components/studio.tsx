@@ -285,6 +285,9 @@ export function Studio() {
           <a href="#how" className="text-muted">
             How it works
           </a>
+          <a href="#contact" className="text-muted">
+            Contact
+          </a>
           <AccountSlot />
         </nav>
       </header>
@@ -582,6 +585,18 @@ export function Studio() {
             <p className="text-muted">Members save a clean SVG and open it in Figma or Illustrator.</p>
           </article>
         </section>
+
+        <section id="contact" className="mt-10 max-w-xl">
+          <p className="text-xs font-semibold tracking-widest text-field uppercase">Contact</p>
+          <h2 className="font-display mt-2 text-4xl font-medium">Contact us</h2>
+          <p className="mt-2 text-muted">Questions about a trace, a plan, or a file? Send a note and we’ll reply.</p>
+          <a
+            href="mailto:info@vectorlineform.com"
+            className="mt-4 inline-flex min-h-11 items-center font-semibold text-field"
+          >
+            info@vectorlineform.com
+          </a>
+        </section>
       </main>
 
       {dragging ? (
@@ -706,7 +721,7 @@ function weightWord(weight: number) {
 function Nudge({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button type="button" className="min-h-11 min-w-11 rounded-lg border border-line bg-paper" onClick={onClick}>
-      {label === "Up" ? "\u2191" : label === "Down" ? "\u2193" : label === "Left" ? "\u2190" : "\u2192"}
+      {label === "Up" ? "↑" : label === "Down" ? "↓" : label === "Left" ? "←" : "→"}
       <span className="sr-only">{label}</span>
     </button>
   );
@@ -733,5 +748,5 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 function baseName(name: string) {
-  return (name || "trace").replace(/\\.\\w+$/, "");
+  return (name || "trace").replace(/\.\w+$/, "");
 }
