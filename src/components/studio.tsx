@@ -4,6 +4,7 @@ import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getMembership, startCheckout } from "@/lib/billing";
 import { stampPreview } from "@/lib/watermark";
+import { PrintPrep } from "@/components/print-prep";
 import {
   composeSvg,
   formatBytes,
@@ -269,6 +270,15 @@ export function Studio() {
   }
 
   const hasImage = Boolean(name);
+  const printBody = member
+    ? composeSvg(
+        layers.filter((layer) => layer.visible && layer.role !== "background"),
+        dims.w,
+        dims.h,
+        settings.stroke,
+      )
+    : "";
+  const printSvg = printBody.includes("<path") ? printBody : svg;
 
   return (
     <div className="min-h-screen bg-paper text-ink">
@@ -358,6 +368,16 @@ export function Studio() {
                   )}
                 </div>
               </div>
+              {member ? (
+                <PrintPrep svg={printSvg} width={dims.w} height={dims.h} fileBase={baseName(name)} disabled={!svg || busy} />
+              ) : (
+                <a
+                  href="#plans"
+                  className="mt-3 inline-flex min-h-11 items-center rounded-full border border-line px-4 font-semibold"
+                >
+                  Prepare for printing
+                </a>
+              )}
 
               <div className="grid min-w-0 gap-3 md:grid-cols-2">
                 <figure className="min-w-0">
