@@ -16,7 +16,17 @@ export const getMembership = createServerFn({ method: "GET" })
       limit 1
     `;
     const plan = rows[0]?.plan;
-    return { active: plan === "month" || plan === "year", plan: plan === "month" || plan === "year" ? plan : null };
+    if (plan === "month" || plan === "year") return { active: true, plan };
+    await reconcilePaidCheckout(sql, context.userId);
+    const again = await sql<{ plan: string }>`
+      select plan from subscriptions
+      where user_id = ${context.userId}
+        and status = 'active'
+        and current_period_end > now()
+      limit 1
+    `;
+    const next = again[0]?.plan;
+    return { active: next === "month" || next === "year", plan: next === "month" || next === "year" ? next : null };
   });
 
 export const startCheckout = createServerFn({ method: "POST" })
@@ -66,3 +76,51 @@ export const startCheckout = createServerFn({ method: "POST" })
     if (!response.ok || !payload.url) throw new Error(payload.error?.message || "Checkout could not start.");
     return { url: payload.url };
   });
+
+async function reconcilePaidCheckout(
+  sql: Awaited<ReturnType<typeof import("@/lib/db").getSql>>,
+  userId: string,
+) {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) return;
+  const response = await fetch("https://api.stripe.com/v1/checkout/sessions?limit=20", {
+    headers: { Authorization: `Bearer ${key}` },
+  });
+  if (!response.ok) return;
+  const payload = (await response.json()) as { data?: Array<Record<string, unknown>> };
+  const session = payload.data?.find((item) => {
+    const meta = item.metadata as { userId?: string; plan?: string } | undefined;
+    const id = String(meta?.userId ?? item.client_reference_id ?? "");
+    return item.status === "complete" && id === userId && (meta?.plan === "month" || meta?.plan === "year");
+  });
+  if (!session) return;
+  const meta = session.metadata as { plan?: string };
+  const plan = meta.plan === "year" ? "year" : "month";
+  const customer = String(session.customer ?? "");
+  const subscription = String(session.subscription ?? "");
+  let periodEnd = new Date(Date.now() + (plan === "year" ? 366 : 32) * 86400000).toISOString();
+  if (subscription) {
+    const sub = await fetch(`https://api.stripe.com/v1/subscriptions/${subscription}`, {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    if (sub.ok) {
+      const body = (await sub.json()) as {
+        current_period_end?: number;
+        items?: { data?: Array<{ current_period_end?: number }> };
+      };
+      const end = body.current_period_end || body.items?.data?.[0]?.current_period_end;
+      if (end) periodEnd = new Date(end * 1000).toISOString();
+    }
+  }
+  await sql`
+    insert into subscriptions (user_id, plan, status, stripe_customer, stripe_subscription, current_period_end)
+    values (${userId}, ${plan}, 'active', ${customer}, ${subscription}, ${periodEnd})
+    on conflict (user_id) do update set
+      plan = excluded.plan,
+      status = excluded.status,
+      stripe_customer = excluded.stripe_customer,
+      stripe_subscription = excluded.stripe_subscription,
+      current_period_end = excluded.current_period_end,
+      updated_at = now()
+  `;
+}
