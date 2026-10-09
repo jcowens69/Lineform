@@ -303,6 +303,9 @@ export function Studio() {
               ? "Drop a logo or illustration. Your downloads are the clean SVG."
               : "Drop a logo or illustration, or choose a file. The preview is watermarked. A plan downloads the clean SVG."}
           </p>
+          <p className="mt-3 max-w-xl text-muted">
+            Convert a PNG, JPG, or WebP into clean SVG paths. Colors become layers you can edit, then download a file for Illustrator or Figma.
+          </p>
         </section>
 
         <section id="studio" className="rounded-3xl border border-line bg-card shadow-lg">
@@ -584,6 +587,36 @@ export function Studio() {
             <h2 className="font-display text-2xl">Download</h2>
             <p className="text-muted">Members save a clean SVG and open it in Figma or Illustrator.</p>
           </article>
+        </section>
+
+        <section id="faq" className="mt-10 max-w-2xl">
+          <p className="text-xs font-semibold tracking-widest text-field uppercase">Questions</p>
+          <h2 className="font-display mt-2 text-4xl font-medium">Common questions</h2>
+          <dl className="mt-6 grid gap-5">
+            <div>
+              <dt className="font-semibold">What files can I convert to SVG?</dt>
+              <dd className="mt-1 text-muted">
+                PNG, JPG, WebP, GIF, and BMP. Logos and flat illustrations trace cleaner than photos.
+              </dd>
+            </div>
+            <div>
+              <dt className="font-semibold">Will the SVG open in Illustrator or Figma?</dt>
+              <dd className="mt-1 text-muted">
+                Yes. Colors become layers you can hide, recolor, or move, then download as a clean SVG.
+              </dd>
+            </div>
+            <div>
+              <dt className="font-semibold">Why is the preview watermarked?</dt>
+              <dd className="mt-1 text-muted">
+                The preview is stamped so it cannot be copied out. A plan downloads the file without the watermark. Monthly
+                is $9.99 and a year is $100.
+              </dd>
+            </div>
+            <div>
+              <dt className="font-semibold">Where does the tracing happen?</dt>
+              <dd className="mt-1 text-muted">In your browser. The artwork is not uploaded to make the SVG.</dd>
+            </div>
+          </dl>
         </section>
 
         <section id="contact" className="mt-10 max-w-xl">

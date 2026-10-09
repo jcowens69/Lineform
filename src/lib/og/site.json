@@ -1,4 +1,5 @@
 {
-  "title": "Lineform",
+  "title": "Lineform — Convert PNG and JPG to SVG",
+  "description": "Turn a PNG, JPG, or WebP logo into clean SVG paths. Trace in the browser, split colors into layers, and download for Illustrator or Figma.",
   "card": "custom"
 }
