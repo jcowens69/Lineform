@@ -9,12 +9,17 @@ function Login() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
+    if (mode === "up" && password !== confirm) {
+      setError("Passwords do not match.");
+      return;
+    }
     setBusy(true);
     const result =
       mode === "up"
@@ -22,12 +27,10 @@ function Login() {
             name: name || email,
             email,
             password,
-            callbackURL: "/#plans",
           })
         : await authClient.signIn.email({
             email,
             password,
-            callbackURL: "/#plans",
           });
     setBusy(false);
     if (result.error) {
@@ -44,7 +47,6 @@ function Login() {
           Lineform
         </a>
         <h1 className="font-display mt-6 text-4xl font-medium">{mode === "up" ? "Create account" : "Sign in"}</h1>
-        <p className="mt-2 text-muted">Google and X only work on the Grok host. Use email here.</p>
         <form className="mt-6 grid gap-3" onSubmit={submit}>
           {mode === "up" ? (
             <label className="grid gap-1 text-sm">
@@ -80,6 +82,20 @@ function Login() {
               autoComplete={mode === "up" ? "new-password" : "current-password"}
             />
           </label>
+          {mode === "up" ? (
+            <label className="grid gap-1 text-sm">
+              Confirm password
+              <input
+                type="password"
+                required
+                minLength={8}
+                className="min-h-11 rounded-full border border-line bg-card px-4"
+                value={confirm}
+                onChange={(event) => setConfirm(event.target.value)}
+                autoComplete="new-password"
+              />
+            </label>
+          ) : null}
           {error ? <p className="text-sm text-amber">{error}</p> : null}
           <button type="submit" disabled={busy} className="min-h-11 rounded-full bg-field px-4 font-semibold text-cream disabled:opacity-40">
             {busy ? "Working…" : mode === "up" ? "Create account" : "Sign in"}
