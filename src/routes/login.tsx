@@ -2,7 +2,15 @@ import { useState, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { authClient } from "@/lib/auth/client";
 
-export const Route = createFileRoute("/login")({ component: Login });
+export const Route = createFileRoute("/login")({
+  head: () => ({
+    meta: [
+      { title: "Sign in \u2014 Lineform" },
+      { name: "robots", content: "noindex,nofollow" },
+    ],
+  }),
+  component: Login,
+});
 
 function Login() {
   const [mode, setMode] = useState<"in" | "up">("up");
@@ -98,7 +106,7 @@ function Login() {
           ) : null}
           {error ? <p className="text-sm text-amber">{error}</p> : null}
           <button type="submit" disabled={busy} className="min-h-11 rounded-full bg-field px-4 font-semibold text-cream disabled:opacity-40">
-            {busy ? "Working…" : mode === "up" ? "Create account" : "Sign in"}
+            {busy ? "Working\u2026" : mode === "up" ? "Create account" : "Sign in"}
           </button>
         </form>
         <button
