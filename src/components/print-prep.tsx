@@ -289,7 +289,7 @@ export function PrintPrep({
               </div>
               {garment === "light" ? (
                 <label className="grid gap-2 text-sm text-muted">
-                  Knock out whites brighter than {cutoff}
+                  Knock out whites brighter than {cutoff}. Colored ink stays.
                   <input
                     type="range"
                     min={200}

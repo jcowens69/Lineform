@@ -15,11 +15,38 @@ const NEIGHBORS: ReadonlyArray<readonly [number, number]> = [
 export type Pt = { x: number; y: number };
 
 export function knockoutNearWhite(data: Uint8ClampedArray, cutoff: number) {
+  const limit = Math.max(0, Math.min(255, cutoff));
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] < 8) continue;
-    const bright = data[i] * 0.2126 + data[i + 1] * 0.7152 + data[i + 2] * 0.0722;
-    if (bright >= cutoff) data[i + 3] = 0;
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+    if (chroma > 18) continue;
+    const bright = r * 0.2126 + g * 0.7152 + b * 0.0722;
+    if (bright >= limit) data[i + 3] = 0;
   }
+}
+
+export function keepPrintLayer(fill: string, role: "background" | "shape", visible: boolean) {
+  if (!visible) return false;
+  return !(role === "background" && paperFill(fill));
+}
+
+function paperFill(fill: string) {
+  const raw = fill.trim().toLowerCase();
+  let body = "";
+  const hex = raw.match(/^#([0-9a-f]{3,8})$/);
+  if (hex) {
+    body = hex[1];
+    if (body.length <= 4) body = body.slice(0, 3).split("").map((part) => part + part).join("");
+    body = body.slice(0, 6);
+  } else if (raw === "white") body = "ffffff";
+  else return false;
+  const r = Number.parseInt(body.slice(0, 2), 16);
+  const g = Number.parseInt(body.slice(2, 4), 16);
+  const b = Number.parseInt(body.slice(4, 6), 16);
+  return r > 244 && g > 244 && b > 244;
 }
 
 export function opaquePlate(data: Uint8ClampedArray) {

@@ -169,7 +169,7 @@ function parseLayers(svg: string): TraceLayer[] {
     role: "shape",
     name: "Layer " + (index + 1),
   }));
-  const bg = items.find((item) => isPaper(item.fill)) ?? items[0];
+  const bg = items.find((item) => isPaper(item.fill));
   if (bg) {
     bg.role = "background";
     bg.name = "Background";
