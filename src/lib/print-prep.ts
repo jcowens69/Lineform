@@ -55,6 +55,51 @@ export function opaquePlate(data: Uint8ClampedArray) {
   return plate;
 }
 
+export type InkBounds = { x: number; y: number; w: number; h: number };
+
+/** Opaque art only. Drops the empty canvas so the print page is not a white rectangle. */
+export function inkBounds(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  plate?: Uint8Array | null,
+): InkBounds | null {
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  const count = width * height;
+  for (let i = 0; i < count; i++) {
+    if (data[i * 4 + 3] <= 20 && !(plate && plate[i] > 0)) continue;
+    const x = i % width;
+    const y = (i - x) / width;
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+  if (maxX < 0) return null;
+  return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+}
+
+export function cropColor(data: Uint8ClampedArray, width: number, bounds: InkBounds) {
+  const out = new Uint8ClampedArray(bounds.w * bounds.h * 4);
+  for (let y = 0; y < bounds.h; y++) {
+    const src = ((bounds.y + y) * width + bounds.x) * 4;
+    out.set(data.subarray(src, src + bounds.w * 4), y * bounds.w * 4);
+  }
+  return out;
+}
+
+export function cropPlane(plane: Uint8Array, width: number, bounds: InkBounds) {
+  const out = new Uint8Array(bounds.w * bounds.h);
+  for (let y = 0; y < bounds.h; y++) {
+    const src = (bounds.y + y) * width + bounds.x;
+    out.set(plane.subarray(src, src + bounds.w), y * bounds.w);
+  }
+  return out;
+}
+
 export function maskFromAlpha(data: Uint8ClampedArray) {
   const mask = new Uint8Array(data.length / 4);
   for (let i = 0, p = 0; i < data.length; i += 4, p++) mask[p] = data[i + 3] > 24 ? 1 : 0;

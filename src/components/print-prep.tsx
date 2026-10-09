@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getBearerToken } from "@/lib/auth/client";
 import {
   PRINT_DPI,
+  cropColor,
+  cropPlane,
   cutGeometry,
+  inkBounds,
   knockoutNearWhite,
   maskFromAlpha,
   opaquePlate,
@@ -68,15 +71,23 @@ export function PrintPrep({
         if (cancel || mine !== token.current) return;
         const color = new ImageData(new Uint8ClampedArray(image.data), image.width, image.height);
         if (printer === "ty300" && garment === "light") knockoutNearWhite(color.data, cutoff);
-        plateRef.current =
+        const fullPlate =
           printer === "ty300" && garment === "dark" ? opaquePlate(color.data) : new Uint8Array(image.width * image.height);
+        const bounds = inkBounds(color.data, image.width, image.height, fullPlate);
+        if (!bounds) {
+          setError("Nothing opaque left to print.");
+          setStatus("");
+          return;
+        }
+        const cropped = new ImageData(cropColor(color.data, image.width, bounds), bounds.w, bounds.h);
+        plateRef.current = cropPlane(fullPlate, image.width, bounds);
         colorLayer.current = null;
         setRaster({
-          w: image.width,
-          h: image.height,
+          w: bounds.w,
+          h: bounds.h,
           dpi: (PRINT_DPI * image.width) / width,
-          color,
-          mask: maskFromAlpha(image.data),
+          color: cropped,
+          mask: maskFromAlpha(cropped.data),
         });
         setStatus("");
       })
