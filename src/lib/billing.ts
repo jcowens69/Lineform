@@ -54,6 +54,8 @@ export const startCheckout = createServerFn({ method: "POST" })
       "metadata[userId]": context.userId,
       "metadata[plan]": data.plan,
       "managed_payments[enabled]": "false",
+      allow_promotion_codes: "true",
+      payment_method_collection: "if_required",
     });
     const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
