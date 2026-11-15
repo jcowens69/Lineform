@@ -54,7 +54,7 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font); displa
 
 <header class="top">
   <h1>Tavi booth <span>· 10′ × 10′ arch kit</span></h1>
-  <p class="specs">Back wall 9′ × 7.5′ · Arch 8′-3″ high · Header to 8′-10″ · 32″ monitor</p>
+  <p class="specs">Back wall 9′ × 7.5′ · Arch 8′-3″ high · Header to 8′-10″ · 32″ monitor · Bistro set under the arch</p>
 </header>
 <main class="stage" id="stage">
   <p class="hint">Drag to turn · Scroll or pinch to zoom · Right-drag or two fingers to pan</p>
@@ -174,6 +174,28 @@ async function build() {
   add(new T.ExtrudeGeometry(roundedRect(3.5, 1.8, 0.25, false), { depth: 0.12, bevelEnabled: false, curveSegments: 12 }), black, cx - 1.75, F + 3.34, cz + 0.9, { rx: -Math.PI / 2 });
   add(new T.BoxGeometry(0.75, 0.04, 0.55), std('#1a1f2e', { roughness: 0.3 }), cx + 1.0, F + 3.42, cz - 0.3, { rx: -0.3 });
 
+  // bistro set under the arch: 24" round x 40" bar table, two 17" x 15" swivel stools facing each other
+  {
+    const BX = 3.6, BT = 3.2;
+    const blk = std('#141416', { roughness: 0.5 }), leather = std('#121214', { roughness: 0.42 });
+    const chrome = std('#d4d8de', { metalness: 0.7, roughness: 0.22 });
+    add(new T.CylinderGeometry(1.0, 1.0, 0.07, 48), blk, BX, F + 40 / 12 - 0.035, BT);
+    add(new T.CylinderGeometry(0.1, 0.1, 3.2, 16), blk, BX, F + 1.75, BT);
+    add(new T.CylinderGeometry(0.22, 0.75, 0.14, 40), blk, BX, F + 0.07, BT);
+    const stool = (z, dir) => { // dir +1 faces +z (toward the aisle), -1 faces the back wall
+      const seatY = F + 2.5;
+      add(new T.CylinderGeometry(0.62, 0.67, 0.05, 40), chrome, BX, F + 0.03, z);
+      add(new T.CylinderGeometry(0.16, 0.3, 0.12, 24), chrome, BX, F + 0.11, z);
+      add(new T.CylinderGeometry(0.075, 0.075, 2.2, 14), chrome, BX, F + 1.2, z);
+      const ring = add(new T.TorusGeometry(0.42, 0.035, 8, 32, Math.PI), chrome, BX, F + 1.1, z + dir * 0.12, { rx: Math.PI / 2 });
+      ring.rotation.z = dir > 0 ? 0 : Math.PI;
+      add(new T.BoxGeometry(1.42, 0.24, 1.25), leather, BX, seatY - 0.12, z);
+      const back = add(new T.BoxGeometry(1.42, 1.15, 0.2), leather, BX, seatY + 0.5, z - dir * 0.6);
+      back.rotation.x = dir * -0.14;
+    };
+    stool(BT - 1.72, 1);
+    stool(BT + 1.72, -1);
+  }
   scene.add(new T.HemisphereLight('#ffffff', '#d8d2c8', 1.7));
   const sun = new T.DirectionalLight('#ffffff', 1.9); sun.position.set(-10, 28, 24); sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12, near: 1, far: 80 });
