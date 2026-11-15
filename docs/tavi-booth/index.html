@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Interactive 3D model of the Tavi 10x10 arch-kit tradeshow booth.">
+<style>body{margin:0;font-size:14px}[hidden]{display:none!important}</style>
+<title>Tavi Booth 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one-screen viewer. Slim header with booth specs, 3D stage fills the rest, view controls float at the bottom of the stage. */
+:root {
+  --bg: #F3F6FC; --surface: #FFFFFF; --fg: #040F31; --muted: #4A5578; --line: #E3E8F2;
+  --accent: #5B3FC4; --accent-fg: #FFFFFF; --scene: #EEF1F6; --ground: #F7F8FB;
+  --font: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #08102B; --surface: #101D3D; --fg: #D8EAFF; --muted: #A3AED0; --line: #263657;
+  --accent: #C5AAFB; --accent-fg: #040F31; --scene: #0C1534; --ground: #121D40; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #08102B; --surface: #101D3D; --fg: #D8EAFF; --muted: #A3AED0; --line: #263657;
+  --accent: #C5AAFB; --accent-fg: #040F31; --scene: #0C1534; --ground: #121D40; color-scheme: dark }
+
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font); display: flex; flex-direction: column; overflow: hidden; }
+.top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 24px;
+  padding-block: 14px 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  border-bottom: 1px solid var(--line); background: var(--surface); }
+.top h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+.top h1 span { color: var(--muted); font-weight: 500; }
+.specs { margin: 0; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stage { position: relative; flex: 1; min-height: 0; background: var(--scene); }
+.stage canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.stage canvas:active { cursor: grabbing; }
+.hint { position: absolute; top: 12px; left: max(16px, env(safe-area-inset-left, 0px)); margin: 0; font-size: 12px; color: var(--muted);
+  background: color-mix(in srgb, var(--surface) 82%, transparent); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; }
+.controls { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 6px; max-width: calc(100% - 32px); box-sizing: border-box;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 8px 28px rgba(4,15,49,0.14); }
+.controls button { font: 500 13px/1 var(--font); color: var(--fg); background: transparent; border: 1px solid transparent; border-radius: 9px;
+  padding: 0 12px; min-height: 36px; cursor: pointer; }
+.controls button:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.controls button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.controls button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+.controls .sep { width: 1px; align-self: stretch; background: var(--line); margin: 4px 2px; }
+.loading[hidden] { display: none; }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; font-size: 14px; color: var(--muted); background: var(--scene); }
+@media (max-width: 520px) { .hint { display: none; } .controls button { padding: 0 9px; font-size: 12px; } }
+</style>
+</head>
+<body>
+
+
+<header class="top">
+  <h1>Tavi booth <span>· 10′ × 10′ arch kit</span></h1>
+  <p class="specs">Back wall 9′ × 7.5′ · Arch 8′-3″ high · Header to 8′-10″ · 32″ monitor</p>
+</header>
+<main class="stage" id="stage">
+  <p class="hint">Drag to turn · Scroll or pinch to zoom · Right-drag or two fingers to pan</p>
+  <div class="loading" id="loading">Loading the booth…</div>
+  <nav class="controls" aria-label="Camera views">
+    <button type="button" id="v-front" data-view="front">Front</button>
+    <button type="button" id="v-left" data-view="left">Front left</button>
+    <button type="button" id="v-right" data-view="right">Front right</button>
+    <button type="button" id="v-side" data-view="side">Side</button>
+    <button type="button" id="v-back" data-view="back">Back</button>
+    <button type="button" id="v-top" data-view="top">Top</button>
+    <span class="sep" aria-hidden="true"></span>
+    <button type="button" id="spin" aria-pressed="false">Auto-rotate</button>
+  </nav>
+</main>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as T from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const stage = document.getElementById('stage');
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+const renderer = new T.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = T.SRGBColorSpace;
+renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
+renderer.domElement.setAttribute('aria-label', '3D model of the Tavi tradeshow booth. Drag to turn it.');
+renderer.domElement.setAttribute('role', 'img');
+stage.prepend(renderer.domElement);
+
+const scene = new T.Scene();
+const camera = new T.PerspectiveCamera(36, 1, 0.1, 500);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.minDistance = 6; controls.maxDistance = 48; controls.maxPolarAngle = Math.PI / 2 - 0.03;
+controls.autoRotateSpeed = 1.2;
+const TARGET = new T.Vector3(0, 3.8, 4.2);
+
+// ---------- scene ----------
+function woodTexture() {
+  const c = document.createElement('canvas'); c.width = 2048; c.height = 2048; const g = c.getContext('2d');
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const pw = 2048 / 20;
+  for (let i = 0; i < 20; i++) {
+    let y = -rnd() * 600;
+    while (y < 2048) {
+      const len = 500 + rnd() * 700, l = 64 + rnd() * 10, h = 30 + rnd() * 6;
+      g.fillStyle = `hsl(${h},${32 + rnd() * 10}%,${l}%)`; g.fillRect(i * pw, y, pw, len);
+      for (let k = 0; k < 14; k++) { g.strokeStyle = `hsla(${h - 4},40%,${l - 12}%,${0.08 + rnd() * 0.1})`; g.lineWidth = 1 + rnd() * 2; const x = i * pw + rnd() * pw; g.beginPath(); g.moveTo(x, y); g.bezierCurveTo(x + rnd() * 8 - 4, y + len * 0.3, x + rnd() * 8 - 4, y + len * 0.6, x + rnd() * 6 - 3, y + len); g.stroke(); }
+      g.fillStyle = 'rgba(80,55,30,0.35)'; g.fillRect(i * pw, y + len - 2, pw, 3);
+      y += len;
+    }
+    g.fillStyle = 'rgba(80,55,30,0.3)'; g.fillRect(i * pw, 0, 2, 2048);
+  }
+  const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t;
+}
+function roundedRect(w, h, r, topOnly) {
+  const s = new T.Shape(); s.moveTo(0, 0); s.lineTo(w, 0);
+  s.lineTo(w, h - r); s.absarc(w - r, h - r, r, 0, Math.PI / 2, false); s.lineTo(r, h); s.absarc(r, h - r, r, Math.PI / 2, Math.PI, false);
+  if (!topOnly) { s.lineTo(0, r); s.absarc(r, r, r, Math.PI, 1.5 * Math.PI, false); s.lineTo(w - r, 0); s.absarc(w - r, r, r, 1.5 * Math.PI, 2 * Math.PI, false); }
+  s.lineTo(0, 0); return s;
+}
+
+let ground;
+async function build() {
+  const L = new T.TextureLoader();
+  const load = async (u, rx = 1, ry = 1) => { const t = await L.loadAsync(u); t.colorSpace = T.SRGBColorSpace; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); t.repeat.set(rx, ry); return t; };
+  const [wallT, towerT, headerT, counterT, screenT] = await Promise.all([
+    load('tex/arch_wall.jpg', 1 / 9, 1 / 7.5), load('tex/arch_tower.jpg'), load('tex/arch_header.jpg', 1 / 5, 1 / 1.1),
+    load('tex/arch_counter.jpg'), load('tex/arch_screen.jpg')]);
+  const std = (c, o = {}) => new T.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.9 }, o));
+  const ink = std('#0a1438', { roughness: 0.92 });
+  const metal = std('#c4c8cf', { metalness: 0.8, roughness: 0.3 });
+  const black = std('#06080d', { roughness: 0.35 });
+  const add = (geo, mat, x, y, z, o = {}) => { const m = new T.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = o.cast !== false; m.receiveShadow = true; if (o.rx) m.rotation.x = o.rx; if (o.ry) m.rotation.y = o.ry; scene.add(m); return m; };
+  const F = 0.06;
+
+  ground = add(new T.PlaneGeometry(1000, 1000), std('#ffffff', { roughness: 1 }), 0, 0, 0, { rx: -Math.PI / 2, cast: false });
+  const wood = std('#c9a578');
+  add(new T.BoxGeometry(10, F, 10), [wood, wood, new T.MeshStandardMaterial({ map: woodTexture(), roughness: 0.45 }), wood, wood, wood], 0, F / 2, 5, { cast: false });
+
+  // back wall: printed face on the aisle side, plain backer behind
+  add(new T.ExtrudeGeometry(roundedRect(9, 7.5, 0.6, true), { depth: 0.25, bevelEnabled: false, curveSegments: 24 }), ink, -4.5, F, 0.15);
+  add(new T.ShapeGeometry(roundedRect(9, 7.5, 0.6, true), 24), new T.MeshStandardMaterial({ map: wallT, roughness: 0.85 }), -4.5, F, 0.402);
+  for (const fx of [-4.2, 4.2]) add(new T.BoxGeometry(0.25, 0.03, 1.6), metal, fx, F + 0.015, 0.3);
+
+  // header sign, printed both sides
+  const hdrShape = roundedRect(5, 1.1, 0.3, false), hdrMat = new T.MeshStandardMaterial({ map: headerT, roughness: 0.6 });
+  add(new T.ExtrudeGeometry(hdrShape, { depth: 0.12, bevelEnabled: false, curveSegments: 16 }), ink, -2.5, F + 7.75, 0.22);
+  add(new T.ShapeGeometry(hdrShape, 16), hdrMat, -2.5, F + 7.75, 0.342);
+  add(new T.ShapeGeometry(hdrShape, 16), hdrMat, 2.5, F + 7.75, 0.218, { ry: Math.PI });
+  for (const px of [-1.6, 1.6]) add(new T.CylinderGeometry(0.03, 0.03, 0.4, 8), metal, px, F + 7.6, 0.28);
+
+  // arch: U profile in (z, y), extruded 2 ft along x
+  const zf = 6.2, zr = -0.05, H = 8.25, R = 0.7, t = 0.18, s = new T.Shape();
+  s.moveTo(zf, 0); s.lineTo(zf, H - R); s.absarc(zf - R, H - R, R, 0, Math.PI / 2, false); s.lineTo(zr + R, H); s.absarc(zr + R, H - R, R, Math.PI / 2, Math.PI, false);
+  s.lineTo(zr, 0); s.lineTo(zr + t, 0); s.lineTo(zr + t, H - R); s.absarc(zr + R, H - R, R - t, Math.PI, Math.PI / 2, true); s.lineTo(zf - R, H - t); s.absarc(zf - R, H - R, R - t, Math.PI / 2, 0, true); s.lineTo(zf - t, 0); s.lineTo(zf, 0);
+  add(new T.ExtrudeGeometry(s, { depth: 2.0, bevelEnabled: false, curveSegments: 32 }), std('#0a1438', { roughness: 0.85 }), 4.6, F, 0, { ry: -Math.PI / 2 });
+  add(new T.PlaneGeometry(2.0, 7.6), new T.MeshStandardMaterial({ map: towerT, roughness: 0.85 }), 3.6, F + 3.8, zf + 0.004);
+  add(new T.BoxGeometry(2.2, 0.03, 0.9), metal, 3.6, F + 0.015, zf - 0.35);
+  add(new T.BoxGeometry(2.2, 0.03, 0.9), metal, 3.6, F + 0.015, zr + 0.35);
+  add(new T.BoxGeometry(2.3, 1.3, 0.12), [black, black, black, black, new T.MeshStandardMaterial({ map: screenT, emissiveMap: screenT, emissive: '#ffffff', emissiveIntensity: 0.22, roughness: 0.3 }), black], 3.6, F + 5.2, zf + 0.08);
+
+  // wrapped counter
+  const cx = -1.85, cz = 7.8, wash = std('#eef1f8', { roughness: 0.85 });
+  add(new T.BoxGeometry(3.2, 0.12, 1.5), black, cx, F + 0.06, cz);
+  add(new T.BoxGeometry(3.3, 3.1, 1.6), [wash, wash, wash, wash, new T.MeshStandardMaterial({ map: counterT, roughness: 0.85 }), wash], cx, F + 0.12 + 1.55, cz);
+  add(new T.ExtrudeGeometry(roundedRect(3.5, 1.8, 0.25, false), { depth: 0.12, bevelEnabled: false, curveSegments: 12 }), black, cx - 1.75, F + 3.34, cz + 0.9, { rx: -Math.PI / 2 });
+  add(new T.BoxGeometry(0.75, 0.04, 0.55), std('#1a1f2e', { roughness: 0.3 }), cx + 1.0, F + 3.42, cz - 0.3, { rx: -0.3 });
+
+  scene.add(new T.HemisphereLight('#ffffff', '#d8d2c8', 1.7));
+  const sun = new T.DirectionalLight('#ffffff', 1.9); sun.position.set(-10, 28, 24); sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12, near: 1, far: 80 });
+  sun.shadow.bias = -0.0004; sun.shadow.radius = 5; sun.target.position.set(0, 0, 4); scene.add(sun, sun.target);
+  const fill = new T.DirectionalLight('#eef2ff', 0.6); fill.position.set(18, 10, -10); scene.add(fill);
+  const back = new T.DirectionalLight('#ffffff', 0.5); back.position.set(-6, 12, -20); scene.add(back);
+  renderer.shadowMap.needsUpdate = true;
+}
+
+function applyTheme() {
+  const bg = new T.Color(css('--scene') || '#EEF1F6');
+  scene.background = bg; scene.fog = new T.Fog(bg, 50, 140);
+  if (ground) ground.material.color.set(css('--ground') || '#F7F8FB');
+}
+new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+
+// ---------- views ----------
+const VIEWS = {
+  front: [0, 6, 24], left: [-13, 10, 20], right: [15, 9, 17], side: [24, 6.5, 5], back: [2, 9, -17], top: [0.01, 32, 4.6],
+};
+let anim = null;
+function goTo(name) {
+  const to = new T.Vector3(...VIEWS[name]);
+  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === name)));
+  if (reduceMotion) { camera.position.copy(to); controls.target.copy(TARGET); return; }
+  anim = { from: camera.position.clone(), fromT: controls.target.clone(), to, t0: performance.now(), dur: 900 };
+}
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => goTo(b.dataset.view)));
+const spin = document.getElementById('spin');
+spin.addEventListener('click', () => { controls.autoRotate = !controls.autoRotate; spin.setAttribute('aria-pressed', String(controls.autoRotate)); });
+controls.addEventListener('start', () => { anim = null; document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', 'false')); });
+controls.addEventListener('change', () => { // keep panning near the booth
+  const tg = controls.target; tg.x = T.MathUtils.clamp(tg.x, -8, 8); tg.y = T.MathUtils.clamp(tg.y, 0.5, 9); tg.z = T.MathUtils.clamp(tg.z, -4, 12);
+});
+
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight; if (!w || !h) return;
+  renderer.setSize(w, h, false); camera.aspect = w / h;
+  camera.fov = w / h < 0.8 ? 52 : 36; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+
+function loop(now) {
+  if (anim) {
+    const k = Math.min(1, (now - anim.t0) / anim.dur), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    camera.position.lerpVectors(anim.from, anim.to, e); controls.target.lerpVectors(anim.fromT, TARGET, e);
+    if (k >= 1) anim = null;
+  }
+  controls.update(); renderer.render(scene, camera); requestAnimationFrame(loop);
+}
+
+camera.position.set(...VIEWS.left); controls.target.copy(TARGET);
+document.getElementById('v-left').setAttribute('aria-pressed', 'true');
+applyTheme(); resize();
+build().then(() => { applyTheme(); document.getElementById('loading').hidden = true; })
+  .catch(() => { document.getElementById('loading').textContent = 'The booth graphics did not load. Reload the page to try again.'; });
+requestAnimationFrame(loop);
+</script>
+
+</body>
+</html>
